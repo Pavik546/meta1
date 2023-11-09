@@ -1,0 +1,116 @@
+const express = require('express');
+var session = require('express-session');
+const axios = require('axios');
+const { error } = require('console');
+const cors = require('cors');
+const querystring = require('querystring');
+
+const app = express();
+
+// Your application's Azure AD configuration
+const clientId = '69922517-9548-4668-8268-aa3641ed36a4';
+const clientSecret = 'H2V8Q~W5U_OaIbl~VfDys3GXyuM-_wJxCFcMNc_v';
+
+const authority = 'https://login.microsoftonline.com/056f6bf0-acc2-4f1b-beda-e5b92277336e'; 
+// Replace with your tenant ID
+const redirectUri = 'http://localhost:8080/auth/callback'; // Update with your callback URL
+
+// Define the authorization endpoint
+const authorizationEndpoint = `${authority}/oauth2/v2.0/authorize`;
+
+
+// Define the token endpoint
+
+const tokenEndpoint = `${authority}/oauth2/v2.0/token`;
+
+app.use(cors());
+
+
+app.get('/login', (req, res) => {
+  // Redirect the user to the Azure AD login page
+  try{
+  const loginUrl = `${authorizationEndpoint}?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&response_mode=query&scope=openid profile email`;
+  res.redirect(loginUrl);
+  }
+  catch(error){
+    console.log(error)
+  }
+});
+let accessToken = null;
+app.get('/auth/callback', async (req, res) => {
+  // Handle the callback from Azure AD
+  const code = req.query.code;
+
+  // Exchange the authorization code for an access token
+  const tokenRequest = {
+    grant_type: 'authorization_code',
+    client_id: clientId,
+    client_secret: clientSecret,
+    code,
+    redirect_uri: redirectUri,
+  };
+
+  
+    axios
+  .post(tokenEndpoint, querystring.stringify(tokenRequest), {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  })
+  .then((response) => {
+    accessToken = response.data.access_token;
+    if(accessToken){
+    res.redirect('http://localhost:3000/organization')
+    }
+    else{
+      res.redirect('http://localhost:8080/login')
+    }
+    //localStorage.setItem('accessToken', response.data.access_token);
+    
+    //res.redirect('http://localhost:3000/dashboard');
+    //res.json({success:true,token:accessToken});
+  })
+  .catch((error) => {
+    res.json({success:error.message});
+  });
+})
+
+ 
+app.get('/adazure',(req,res)=>{
+  if(accessToken){
+    //res.json({message:"pavi"})
+    res.status(200).json({message:"success",token:accessToken})
+    
+  }
+  else{
+    res.json({message:"Unauthorized"})
+  
+    
+
+  }
+  
+})
+app.get('/logout',(req,res)=>{
+  accessToken=null
+  let logoutUri='https://login.microsoftonline.com/056f6bf0-acc2-4f1b-beda-e5b92277336e/oauth2/v2.0/logout?post_logout_redirect_uri=http://localhost:8080/login'
+  
+    res.redirect(logoutUri);
+  
+});
+
+/*
+    const accessToken = response.data.access_token;
+
+    // Decode and inspect the access token to get user information
+    const user = jwt_decode(accessToken); // You may need to install the 'jwt-decode' library
+
+    res.json({ username: user.name, email: user.email });
+  } catch (error) {
+    res.json(error);
+  }
+});
+*/
+
+app.listen(8080, () => {
+  console.log('Server is running on port 8080');
+});
