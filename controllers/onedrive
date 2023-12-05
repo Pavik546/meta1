@@ -1,0 +1,76 @@
+const express = require('express');
+const axios = require('axios');
+const querystring = require('querystring');
+const bodyParser = require('body-parser');
+const multer = require('multer');
+const fs = require('fs');
+
+const app = express();
+const port = 3000;
+
+app.use(bodyParser.json());
+
+// Configure multer to handle file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+const tenantId = 'd7a3ff8f-ea51-48f5-b356-0f1afd29d233';
+const clientId = '267a64db-8aa2-4557-8aaa-4134ba2c5d65';
+const clientSecret = 'G9T8Q~5cBV3nRefAGmo3OlscpXrL0QDOshhKncgL';
+const username = 'Vishal@salessmyth.co';
+const password = 'Temp#5656';
+const redirect_uri = 'https://lemon-rock-097795510.3.azurestaticapps.net/';
+const scope = 'Files.ReadWrite.All offline_access';
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    // Authenticate and obtain access token
+    const {userid}=req.body
+    console.log(userid)
+        const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+
+    const tokenRequest = {
+        grant_type: 'password',
+        client_id: clientId,
+        client_secret: clientSecret,
+      //  redirect_uri: redirectUri,
+        username: username,
+        password: password,
+        scope: 'https://graph.microsoft.com/Files.ReadWrite',
+    
+      };
+      const response = await axios.post(tokenEndpoint, querystring.stringify(tokenRequest), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+  
+      const accessToken=response.data.access_token
+
+    // Upload file to OneDrive
+    const uploadResponse = await uploadToOneDrive(req.file.buffer, req.file.originalname, accessToken);
+
+    res.json({ success: true, message: 'File uploaded successfully', data: uploadResponse.data });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ success: false, message: error.message});
+  }
+});
+
+
+async function uploadToOneDrive(fileBuffer, filename, accessToken) {
+  const uploadEndpoint = 'https://graph.microsoft.com/v1.0/me/drive/root:/Api/' + filename + ':/content';
+
+  const uploadResponse = await axios.put(uploadEndpoint, fileBuffer, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/octet-stream',
+    },
+  });
+
+  return uploadResponse;
+}
+
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
